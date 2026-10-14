@@ -1,294 +1,233 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 
 export default function Signup() {
-  const navigate = useNavigate();
-  const [role, setRole] = useState('worker'); // 'worker' or 'client'
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState('worker'); // ডিফল্ট রোল worker
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const navigate = useNavigate();
 
-  // Form States
-  const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-    password: '',
-    paymentNumber: '', // For Worker (Bkash/Nagad)
-    companyName: '',  // For Client
-    websiteUrl: '',   // For Client
-  });
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  // Google Sign-In Handler
-  const handleGoogleSignIn = async () => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin,
-        },
-      });
-      if (error) throw error;
-    } catch (err) {
-      setErrorMsg(err.message);
-    }
-  };
-
-  // Regular Sign Up Handler
-  const handleSubmit = async (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault();
     setLoading(true);
     setErrorMsg('');
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
+      // ১. সুপাবেস অথ দিয়ে সাইনআপ
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
         options: {
           data: {
-            full_name: formData.fullName,
-            phone: formData.phone,
+            full_name: fullName,
             role: role,
-            payment_number: role === 'worker' ? formData.paymentNumber : null,
-            company_name: role === 'client' ? formData.companyName : null,
-            website_url: role === 'client' ? formData.websiteUrl : null,
-          },
-        },
+          }
+        }
       });
 
-      if (error) throw error;
+      if (authError) throw authError;
 
-      alert('অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে! ড্যাশবোর্ডে রিডাইরেক্ট করা হচ্ছে...');
-      if (role === 'worker') {
-        navigate('/worker');
-      } else {
-        navigate('/client');
+      const user = authData.user;
+      if (!user) throw new Error('রেজিস্ট্রেশন সফল হয়নি। পুনরায় চেষ্টা করুন।');
+
+      // ২. profiles টেবিলে ইউজারের রোল ও নাম সেভ করা (যদি ট্রিগার আগে থেকে না থাকে)
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert([
+          { 
+            id: user.id, 
+            full_name: fullName, 
+            role: role,
+            email: email 
+          }
+        ]);
+
+      if (profileError) {
+        console.error('Profile creation warning:', profileError.message);
       }
+
+      // ৩. রোল অনুযায়ী ড্যাশবোর্ডে রিডায়রেক্ট করা
+      if (role === 'client') {
+        navigate('/client-dashboard');
+      } else {
+        navigate('/worker-dashboard');
+      }
+
     } catch (err) {
-      setErrorMsg(err.message || 'অ্যাকাউন্ট তৈরি করতে সমস্যা হয়েছে');
+      setErrorMsg(err.message || 'রেজিস্ট্রেশন করার সময় একটি সমস্যা হয়েছে।');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center bg-slate-50 py-10 px-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border border-slate-100">
-        
-        {/* Header */}
-        <div className="text-center mb-6">
-          <h2 className="text-3xl font-extrabold text-slate-800">Create an Account</h2>
-          <p className="text-sm text-slate-500 mt-1">
-            Join <span className="font-semibold text-indigo-600">TaskBang</span> as Worker or Client
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px',
+      background: 'var(--tb-bg)'
+    }}>
+      <div style={{
+        width: '100%',
+        maxWidth: '440px',
+        background: 'var(--tb-surface)',
+        border: '1px solid var(--tb-border)',
+        borderRadius: 'var(--tb-radius-xl)',
+        padding: '36px 28px',
+        boxShadow: 'var(--tb-shadow)',
+        backdropFilter: 'blur(12px)'
+      }}>
+        {/* ব্র্যান্ড হেডার */}
+        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+          <h1 style={{ fontSize: '28px', fontWeight: '800', margin: '0 0 8px 0', color: 'var(--tb-text)' }}>
+            TaskBang
+          </h1>
+          <p style={{ fontSize: '14px', color: 'var(--tb-secondary)', fontWeight: '600', margin: '0 0 4px 0' }}>
+            Tasks. Talent. Trust.
+          </p>
+          <p style={{ fontSize: '13px', color: 'var(--tb-text-soft)', margin: '0' }}>
+            নতুন অ্যাকাউন্ট তৈরি করুন (Work • Earn • Grow)
           </p>
         </div>
 
-        {/* Role Selector Tabs */}
-        <div className="flex bg-slate-100 p-1.5 rounded-xl mb-6">
-          <button
-            type="button"
-            onClick={() => setRole('worker')}
-            className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${
-              role === 'worker'
-                ? 'bg-indigo-600 text-white shadow'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            👨‍💻 Join as Worker
-          </button>
-          <button
-            type="button"
-            onClick={() => setRole('client')}
-            className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${
-              role === 'client'
-                ? 'bg-indigo-600 text-white shadow'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            🏢 Join as Client
-          </button>
-        </div>
-
-        {/* Access Privileges Box */}
-        <div className="mb-6 p-4 rounded-xl bg-indigo-50/70 border border-indigo-100 text-xs text-slate-700">
-          <h4 className="font-bold text-indigo-900 mb-1.5 text-sm">
-            {role === 'worker' ? '✨ Worker Access & Privileges:' : '💼 Client Access & Privileges:'}
-          </h4>
-          {role === 'worker' ? (
-            <ul className="list-disc pl-4 space-y-1">
-              <li>সোশ্যাল মিডিয়া, অ্যাপ ডাউনলোড ও রিভিউ টাস্ক সম্পন্ন করে আয়।</li>
-              <li>বিকাশ/নগদ এর মাধ্যমে সরাসরি ইনস্ট্যান্ট উইথড্র সুবিধা।</li>
-              <li>নিরাপদ পেমেন্ট ট্র্যাকিং এবং ওয়ার্কার প্রোফাইল ব্যাজ।</li>
-            </ul>
-          ) : (
-            <ul className="list-disc pl-4 space-y-1">
-              <li>আনলিমিটেড মাইক্রো-টাস্ক পোস্ট করার সুবিধা।</li>
-              <li>হাজার হাজার রিয়েল বাংলাদেশি ইউজার থেকে কাজ সম্পন্ন করার নিশ্চয়তা।</li>
-              <li>স্মার্ট এআই ভেরিফিকেশন এবং প্রুফ চেকিং ড্যাশবোর্ড।</li>
-            </ul>
-          )}
-        </div>
-
         {errorMsg && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg">
+          <div style={{
+            background: 'rgba(239, 68, 68, 0.15)',
+            border: '1px solid var(--tb-danger)',
+            color: '#f87171',
+            padding: '12px',
+            borderRadius: 'var(--tb-radius-sm)',
+            fontSize: '13px',
+            marginBottom: '20px',
+            textAlign: 'center'
+          }}>
             {errorMsg}
           </div>
         )}
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name *</label>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '6px', color: 'var(--tb-text-soft)' }}>
+              পূর্ণ নাম
+            </label>
             <input
               type="text"
-              name="fullName"
               required
-              placeholder="e.g. Md Nayeem"
-              value={formData.fullName}
-              onChange={handleChange}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="আপনার নাম লিখুন"
+              style={{
+                width: '100%',
+                padding: '12px 14px',
+                background: 'var(--tb-bg-soft)',
+                border: '1px solid var(--tb-border)',
+                borderRadius: 'var(--tb-radius-sm)',
+                color: 'var(--tb-text)',
+                outline: 'none'
+              }}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Email Address *</label>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '6px', color: 'var(--tb-text-soft)' }}>
+              ইমেইল অ্যাড্রেস
+            </label>
             <input
               type="email"
-              name="email"
               required
-              placeholder="you@example.com"
-              value={formData.email}
-              onChange={handleChange}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@example.com"
+              style={{
+                width: '100%',
+                padding: '12px 14px',
+                background: 'var(--tb-bg-soft)',
+                border: '1px solid var(--tb-border)',
+                borderRadius: 'var(--tb-radius-sm)',
+                color: 'var(--tb-text)',
+                outline: 'none'
+              }}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Phone Number (Real User Verification) *</label>
-            <input
-              type="tel"
-              name="phone"
-              required
-              placeholder="017XXXXXXXX"
-              value={formData.phone}
-              onChange={handleChange}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          {/* Role Specific Verification Fields */}
-          {role === 'worker' ? (
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">bKash / Nagad Wallet Number *</label>
-              <input
-                type="text"
-                name="paymentNumber"
-                required
-                placeholder="017XXXXXXXX (For Withdrawals)"
-                value={formData.paymentNumber}
-                onChange={handleChange}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-          ) : (
-            <>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Company / Business Name *</label>
-                <input
-                  type="text"
-                  name="companyName"
-                  required
-                  placeholder="e.g. N Tech Studio / Personal"
-                  value={formData.companyName}
-                  onChange={handleChange}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Website or Page URL (Optional)</label>
-                <input
-                  type="url"
-                  name="websiteUrl"
-                  placeholder="https://facebook.com/yourpage"
-                  value={formData.websiteUrl}
-                  onChange={handleChange}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-            </>
-          )}
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Password *</label>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '6px', color: 'var(--tb-text-soft)' }}>
+              পাসওয়ার্ড
+            </label>
             <input
               type="password"
-              name="password"
               required
-              placeholder="••••••••"
-              value={formData.password}
-              onChange={handleChange}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড"
+              style={{
+                width: '100%',
+                padding: '12px 14px',
+                background: 'var(--tb-bg-soft)',
+                border: '1px solid var(--tb-border)',
+                borderRadius: 'var(--tb-radius-sm)',
+                color: 'var(--tb-text)',
+                outline: 'none'
+              }}
             />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '6px', color: 'var(--tb-text-soft)' }}>
+              অ্যাকাউন্টের ধরণ (Role)
+            </label>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '12px 14px',
+                background: 'var(--tb-bg-soft)',
+                border: '1px solid var(--tb-border)',
+                borderRadius: 'var(--tb-radius-sm)',
+                color: 'var(--tb-text)',
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="worker">Worker (কাজ করে আয় করতে চাই)</option>
+              <option value="client">Client (কাজ করাতে চাই)</option>
+            </select>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-all shadow-md hover:shadow-lg disabled:opacity-50"
+            style={{
+              marginTop: '8px',
+              width: '100%',
+              padding: '12px',
+              background: 'var(--tb-secondary)',
+              color: '#070b14',
+              fontWeight: '700',
+              border: 'none',
+              borderRadius: 'var(--tb-radius-sm)',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.7 : 1,
+              transition: 'opacity 0.2s'
+            }}
           >
-            {loading ? 'Creating Account...' : `Create ${role === 'worker' ? 'Worker' : 'Client'} Account`}
+            {loading ? 'অ্যাকাউন্ট তৈরি হচ্ছে...' : 'সাইন আপ করুন'}
           </button>
         </form>
 
-        {/* Divider */}
-        <div className="relative my-6 text-center">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-slate-200"></div>
-          </div>
-          <span className="relative bg-white px-3 text-xs text-slate-400 font-medium">
-            OR
-          </span>
-        </div>
-
-        {/* Google Sign-In */}
-        <button
-          type="button"
-          onClick={handleGoogleSignIn}
-          className="w-full flex items-center justify-center gap-3 py-2.5 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold transition-all shadow-sm"
-        >
-          <svg className="w-5 h-5" viewBox="0 0 24 24">
-            <path
-              fill="#4285F4"
-              d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
-            />
-            <path
-              fill="#34A853"
-              d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.11 0-5.74-2.11-6.68-4.96H1.21v3.15C3.21 21.32 7.33 24 12 24z"
-            />
-            <path
-              fill="#FBBC05"
-              d="M5.32 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.61H1.21C.44 8.14 0 9.99 0 12s.44 3.86 1.21 5.39l4.11-3.15z"
-            />
-            <path
-              fill="#EA4335"
-              d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.21 2.68 1.21 6.61l4.11 3.15c.94-2.85 3.57-4.96 6.68-4.96z"
-            />
-          </svg>
-          Continue with Google
-        </button>
-
-        {/* Footer */}
-        <p className="text-center text-xs text-slate-500 mt-6">
-          Already have an account?{' '}
-          <Link to="/login" className="text-indigo-600 font-bold hover:underline">
-            Log In
+        <div style={{ textAlign: 'center', marginTop: '24px', fontSize: '13px', color: 'var(--tb-text-soft)' }}>
+          ইতিমধ্যে অ্যাকাউন্ট আছে?{' '}
+          <Link to="/login" style={{ color: 'var(--tb-secondary)', fontWeight: '600', textDecoration: 'none' }}>
+            লগইন করুন
           </Link>
-        </p>
-
+        </div>
       </div>
     </div>
   );

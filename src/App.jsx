@@ -1,72 +1,69 @@
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import Navbar from './components/Navbar';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
-import AdminLogin from './pages/AdminLogin';
-import AdminSignup from './pages/AdminSignup'; // নতুন ইম্পোর্ট
-import ClientDashboard from './pages/ClientDashboard';
-import WorkerDashboard from './pages/WorkerDashboard';
-import AdminDashboard from './pages/AdminDashboard';
 
-function ProtectedRoute({ children, allowedRole }) {
-  const { user, loading } = useAuth();
+// Lazy loading components for max performance
+const WorkerDashboard = lazy(() => import('./pages/WorkerDashboard'));
+const BrowseTasks = lazy(() => import('./pages/BrowseTasks'));
+const TaskDetails = lazy(() => import('./pages/TaskDetails'));
+const WorkerWallet = lazy(() => import('./pages/WorkerWallet'));
+const WorkerProfile = lazy(() => import('./pages/WorkerProfile'));
+const TopReferrals = lazy(() => import('./pages/TopReferrals'));
+const TopEarners = lazy(() => import('./pages/TopEarners'));
+const TopTaskCompleters = lazy(() => import('./pages/TopTaskCompleters'));
 
-  if (loading) return <div className="p-8 text-center text-slate-500 font-bold">Loading...</div>;
-  if (!user) return <Navigate to="/login" replace />;
+const ClientDashboard = lazy(() => import('./pages/ClientDashboard'));
+const CreateTask = lazy(() => import('./pages/CreateTask'));
+const ClientSubmissions = lazy(() => import('./pages/ClientSubmissions'));
+const ClientWallet = lazy(() => import('./pages/ClientWallet'));
 
-  const userRole = user?.user_metadata?.role;
-  if (allowedRole && userRole !== allowedRole) {
-    return <Navigate to={userRole === 'client' ? '/client' : userRole === 'worker' ? '/worker' : '/taskbang-master-admin'} replace />;
-  }
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const Notifications = lazy(() => import('./pages/Notifications'));
 
-  return children;
-}
+// Simple loading indicator
+const PageLoader = () => (
+  <div style={{
+    minHeight: '100vh',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    background: '#0b1120',
+    color: '#06b6d4',
+    fontSize: '16px',
+    fontWeight: '700'
+  }}>
+    TaskBang লোড হচ্ছে...
+  </div>
+);
 
 export default function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-          <Navbar />
-          <Routes>
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            
-            {/* সিক্রেট এডমিন পোর্টাল */}
-            <Route path="/taskbang-master-admin" element={<AdminLogin />} />
-            <Route path="/taskbang-master-signup" element={<AdminSignup />} />
+    <Router>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          {/* Worker Routes */}
+          <Route path="/worker-dashboard" element={<WorkerDashboard />} />
+          <Route path="/worker/browse-tasks" element={<BrowseTasks />} />
+          <Route path="/worker/task/:taskId" element={<TaskDetails />} />
+          <Route path="/worker/wallet" element={<WorkerWallet />} />
+          <Route path="/worker/profile" element={<WorkerProfile />} />
+          <Route path="/worker/top-referrals" element={<TopReferrals />} />
+          <Route path="/worker/top-earners" element={<TopEarners />} />
+          <Route path="/worker/top-tasks" element={<TopTaskCompleters />} />
 
-            <Route
-              path="/client"
-              element={
-                <ProtectedRoute allowedRole="client">
-                  <ClientDashboard />
-                </ProtectedRoute>
-              }
-            />
+          {/* Client Routes */}
+          <Route path="/client-dashboard" element={<ClientDashboard />} />
+          <Route path="/client/create-task" element={<CreateTask />} />
+          <Route path="/client/submissions" element={<ClientSubmissions />} />
+          <Route path="/client/wallet" element={<ClientWallet />} />
 
-            <Route
-              path="/worker"
-              element={
-                <ProtectedRoute allowedRole="worker">
-                  <WorkerDashboard />
-                </ProtectedRoute>
-              }
-            />
+          {/* Admin & Shared Routes */}
+          <Route path="/admin-dashboard" element={<AdminDashboard />} />
+          <Route path="/worker/notifications" element={<Notifications />} />
 
-            <Route
-              path="/admin"
-              element={
-                <ProtectedRoute allowedRole="admin">
-                  <AdminDashboard />
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-        </div>
-      </Router>
-    </AuthProvider>
+          {/* Fallback redirect */}
+          <Route path="*" element={<Navigate to="/worker-dashboard" replace />} />
+        </Routes>
+      </Suspense>
+    </Router>
   );
 }
